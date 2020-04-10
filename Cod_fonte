@@ -1,0 +1,212 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Oct 12 12:17:15 2018
+@author: Victor
+"""
+import os
+import xlwt 
+import xlrd
+from xlwt import Workbook 
+from  deslab import *
+syms('N F a ') #Al
+def criaPlanilhaDeEstados(sheet,MyGa):
+wb=Workbook() 
+sheet1=wb.add_sheet(sheet)
+#    #cria cabecalho
+sheet1.write(0,0,'state n')
+sheet1.write(0,1,'State name')
+cont=1
+#    #cria estados
+for n in MyGa.X:
+sheet1.write(cont,0,cont) #escreve na linha cont e coluna 0 o valor de cont
+sheet1.write(cont,1,str(n)) #escreve na linha cont e coluna 1 o estado n
+cont += 1
+#salva Workbook
+wb.save(sheet+'.xls')
+def atualizaPLanilha(planilha):
+wb=Workbook() 
+sheet1=wb.add_sheet('automatoSensorAtualizaPlanilha')
+addLineSheet1=0    
+#==copia planilha em sheet1==#
+for lin in range(0,planilha.nrows,1): 
+for col in range(0,planilha.ncols,1):     
+sheet1.write(lin,col,planilha.row(lin)[col].value)
+#===========================#
+wb.save('automatoSensorAtualizaPlanilha'+'.xls')
+return [str('automatoSensorAtualizaPlanilha'+'.xls')]
+def splitaEstadoInicial(Gentrada,planilha,s,saidaSplitada,estadoParaSplitar): 
+Gaux=Gentrada 
+#==copia planilha em sheet1==#
+wb=Workbook() 
+sheet1=wb.add_sheet('automatoSensor2')
+addLineSheet1=0
+for lin in range(0,planilha.nrows,1): 
+for col in range(0,planilha.ncols,1):
+sheet1.write(lin,col,planilha.row(lin)[col].value)
+#===========================#
+for sSplitada in saidaSplitada:
+for inicial in Gentrada.X0:
+inicialNovo=str(inicial+'_{'+'0new'+'}')
+segregadoInicial=str('('+estadoParaSplitar+')'+'('+sSplitada+')')
+#==para cada saida que deve ser splitada adicionar estado e sua saida em sheet1==#
+sheet1.write((planilha.nrows+addLineSheet1),0,(planilha.nrows+addLineSheet1)) #numeracao
+sheet1.write((planilha.nrows+addLineSheet1),1,segregadoInicial) #estado
+sheet1.write((planilha.nrows+addLineSheet1),s,sSplitada) #saida
+#=======================#
+#==Adioiona Estados Splitados no automato==#
+Gaux=Gaux.addstate(segregadoInicial)
+#==============================#
+addLineSheet1=addLineSheet1+1# incrementa addLineSheet
+#====#  
+#==cria transicoes que possuiam origem no estado inicial para o os estados splitados==#
+for transition in Gentrada.transitions():
+for sSplitada in saidaSplitada:
+if (str(transition[0])==str(estadoParaSplitar) and str(transition[-1])==str(estadoParaSplitar)): #se possui autolaco
+Gaux=Gaux.addtransition([segregadoInicial,transition[1],segregadoInicial])
+elif (str(transition[0])==str(estadoParaSplitar)): #se apenas a origem e da transicao era do antigo estado inicial
+Gaux=Gaux.addtransition([segregadoInicial,transition[1],transition[2]])
+#==Adiciona Novo estado inicial no automato==#
+Gaux=Gaux.addstate(inicialNovo)
+Gaux=Gaux.setpar(X0=inicialNovo)
+#==#adiciona transicoes epsilon#==#
+for sSplitada in saidaSplitada: 
+Gaux=Gaux.addtransition([inicialNovo,'epsilon',segregadoInicial])
+#====#
+#==deleta antigo estado inicial==#
+for state in Gaux:
+if (str(state)==str(estadoParaSplitar)):
+Gaux=Gaux.deletestate(state)
+#===#
+#==Cria transicao de alteracao de saida entre os estados splitados==#
+for s1 in saidaSplitada: 
+for s2 in saidaSplitada:
+if (s1!=s2):
+segregadoEstado1=str('('+inicial+')'+'('+s1+')')
+segregadoEstado2=str('('+inicial+')'+'('+s2+')')
+#Gaux=Gaux.addtransition([segregadoEstado1,s2,segregadoEstado2])
+Gaux=Gaux.addtransition([segregadoEstado1,'epsilon',segregadoEstado2])
+#============#  
+wb.save('automatoSensor2'+'.xls')
+#draw(Gaux)
+return [str('automatoSensor2'+'.xls'),Gaux]                    
+def splitaEstados (Gentrada,planilha,s,saidaSplitada,estadoParaSplitar):
+wb=Workbook() 
+sheet1=wb.add_sheet('automatoSensor')
+addLineSheet1=0
+for lin in range(0,planilha.nrows,1): #copia pllanilha em sheet1
+for col in range(0,planilha.ncols,1):
+sheet1.write(lin,col,planilha.row(lin)[col].value)
+Gaux=Gentrada
+for sSplitada in saidaSplitada: #para cada saida que deve ser splitada adicionar estado e sua saida em sheet1
+segregadoEstado=str('('+estadoParaSplitar+')'+'('+sSplitada+')')
+#print(sSplitada)
+sheet1.write((planilha.nrows+addLineSheet1),0,(planilha.nrows+addLineSheet1)) #numero da linha
+sheet1.write((planilha.nrows+addLineSheet1),1,segregadoEstado) # estado
+sheet1.write((planilha.nrows+addLineSheet1),s,sSplitada) #saida
+addLineSheet1=addLineSheet1+1
+for t in Gentrada.transitions():    #Cria as transicoes de ORIGEM do estado splitado para serem ORIGEM nos novos estados
+for sSplitada in saidaSplitada: #para cada saida
+if ((str(t[0])==estadoParaSplitar) and (str(t[2])==estadoParaSplitar)): #se contem self loop
+Gaux=Gaux.addtransition([segregadoEstado,t[1],segregadoEstado])
+elif (str(t[0])==estadoParaSplitar):#transicoes de origem: o estado De e igual a estado da planilha?
+Gaux=Gaux.addtransition([segregadoEstado,t[1],t[2]]) #cria transicao do novo estado
+elif(str(t[2])==estadoParaSplitar): #transicoes de destino: o estado Para e igual a estado da planilha?
+Gaux=Gaux.addtransition([t[0],t[1],segregadoEstado]) #cria transicao para novo estado
+#==Deleta estado que foi Splitado==#              
+for state in Gaux:
+if (str(state)==str(estadoParaSplitar)):
+Gaux=Gaux.deletestate(state)
+#======#
+#==Cria transicao de alteracao de saida entre os estados splitados==#
+for s1 in saidaSplitada: 
+for s2 in saidaSplitada:
+if (s1!=s2):
+segregadoEstado1=str('('+estadoParaSplitar+')'+'('+s1+')')
+segregadoEstado2=str('('+estadoParaSplitar+')'+'('+s2+')')
+#Gaux=Gaux.addtransition([segregadoEstado1,s2,segregadoEstado2])
+Gaux=Gaux.addtransition([segregadoEstado1,'epsilon',segregadoEstado2])
+#============#            
+wb.save('automatoSensor'+'.xls')
+#draw(Gaux)
+return [str('automatoSensor'+'.xls'),Gaux]
+def saidaEstado(planilha,estado,sensor):
+for r in range(1,planilha.nrows,1):
+if planilha.row(r)[1].value==str(estado):
+saidaEstado=planilha.row(r)[sensor].value
+return saidaEstado
+def insereSaidaEntreEstados (transition,Gentrada,saida,eventosFalha,planilha,s):
+wb=Workbook() 
+sheet1=wb.add_sheet('automatoSensor3')
+addLineSheet1=0
+for lin in range(0,planilha.nrows,1): #copia pllanilha em sheet1
+for col in range(0,planilha.ncols,1):
+sheet1.write(lin,col,planilha.row(lin)[col].value)
+estadoInserido=str('('+transition[0]+')'+'('+transition[1]+')'+'('+transition[-1]+')')
+Gatual=Gentrada
+Gatual=Gatual.deletetransition(transition)
+Gatual=Gatual.addstate(estadoInserido)
+sheet1.write((planilha.nrows+addLineSheet1),0,(planilha.nrows+addLineSheet1)) #numero da linha
+sheet1.write((planilha.nrows+addLineSheet1),1,estadoInserido)
+sheet1.write((planilha.nrows+addLineSheet1),s,saida) #saida
+Gatual=Gatual.addtransition([transition[0],transition[1],estadoInserido])
+Gatual=Gatual.addtransition([estadoInserido,saida,transition[-1]]) 
+#draw(Gatual,'figure')
+#insere transicao de falha nos estados splitados
+for n in Gentrada.transitions():
+for sigmaf in eventosFalha:
+if n[0]==transition[-1] and n[1]==sigmaf:
+if saidaEstado(planilha,transition[0],s) != saidaEstado(planilha,n[-1],s):
+estadoInserido2=str(estadoInserido+','+n[1]+','+n[-1])
+Gatual=Gatual.addstate(estadoInserido2)
+Gatual=Gatual.addtransition([estadoInserido,sigmaf,estadoInserido2])               
+Gatual=Gatual.addtransition([estadoInserido2,saidaEstado(planilha,n[-1],s),n[-1]])
+else:
+Gatual=Gatual.addtransition([estadoInserido,sigmaf,n[-1]])
+#draw(Gatual,'figure')
+#sys.exit()
+wb.save('automatoSensor3'+'.xls')
+return [str('automatoSensor3'+'.xls'),Gatual]
+def sensorMap(wb,Gentrada,eventosFalha):
+G=[]
+#===BurocraciaUsoPlanilha===#
+book = xlrd.open_workbook(wb)  #book=open_workbook(wb)
+planilha = book.sheet_by_index(0)
+#===========================#
+sensor=range(2,planilha.ncols,1) #rangeDeSensores
+#===CriaAutomatoParaCadaSensor===#
+for s in sensor:
+Gatual=Gentrada
+#===splitarStados===#
+for r in range(1,planilha.nrows,1):   
+if (str(planilha.row(r)[s].value).find(';')!=-1): #e necessario splitar?
+saidaParaSplitar=planilha.row(r)[s].value.split(';') #cria a variavel estado a aser splitado
+for state in Gentrada.X0:   
+if (str(planilha.row(r)[1].value)==str(state)):#==O estado inicial tem q ser splitado?==#
+Sheet_G=splitaEstadoInicial(Gatual,planilha,s,saidaParaSplitar,str(planilha.row(r)[1].value)) #chama funcao splitaEstadoInicial
+Sheet_G[1].name='splitaEstadoInicial'
+#draw(Sheet_G[1],'figure')
+b=xlrd.open_workbook(str(Sheet_G[0]))#Atualiza o planilha
+planilha=b.sheet_by_index(0) 
+Gatual=Sheet_G[1]   #Atualiza Gatual
+else:                                   #O estado a ser splitado nao e o inicial
+Sheet_G=splitaEstados(Gatual,planilha,s,saidaParaSplitar,str(planilha.row(r)[1].value)) #chama funcao splitaEstados
+Sheet_G[1].name=saidaParaSplitar
+#draw(Sheet_G[1],'figure')
+b=xlrd.open_workbook(str(Sheet_G[0]))#Atualiza o planilha
+planilha=b.sheet_by_index(0)
+Gatual=Sheet_G[1] #Atualiza Gatual
+#===================#
+#draw(Sheet_G[1],'figure')                
+for t in Gatual.transitions():
+if (saidaEstado(planilha,t[0],s)!=saidaEstado(planilha,t[-1],s) and (t[1]!=saidaEstado(planilha,t[-1],s))):
+Sheet_G=insereSaidaEntreEstados(t,Gatual,saidaEstado(planilha,t[-1],s),eventosFalha,planilha,s)
+#Sheet_G[1].name='InseriuSaida_'+'De='+t[0]+'Para='+t[-1]
+#draw(Sheet_G[1],'figure')
+b=xlrd.open_workbook(str(Sheet_G[0]))#Atualiza o planilha
+planilha=b.sheet_by_index(0)
+Gatual=Sheet_G[1] #Atualiza Gatual
+Gatual=epsilonobserver(Gatual)
+#draw(Gatual,'figure') 
+G=G+[Gatual]
+#====#
+return G
