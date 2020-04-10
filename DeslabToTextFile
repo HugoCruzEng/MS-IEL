@@ -1,0 +1,30 @@
+def criaArquivosEstadosTransicoes(Gd_SO):
+de = open("de.txt", "w")
+eventoTransicao = open("eventoTransicao.txt", "w")
+para = open("para.txt", "w")
+estados = open("estados.txt","w")
+inicial=open("inicial.txt","w")
+eventos=open("eventos.txt.","w")
+for n in Gd_SO.transitions():
+de.write(str(n[0]))
+de.write("\n")
+eventoTransicao.write(str(n[1]))
+eventoTransicao.write("\n")
+para.write(str(n[-1]))
+para.write("\n")
+for n in Gd_SO.X:
+estados.write(str(n))
+estados.write("\n")
+for n in Gd_SO.X0:
+inicial.write(str(n))
+inicial.write("\n")
+for n in Gd_SO.Sigma:
+eventos.write(str(n))
+eventos.write("\n")
+de.close()
+eventoTransicao.close()
+para.close()
+estados.close()
+inicial.close()
+eventos.close()
+\end{lstlisting}
