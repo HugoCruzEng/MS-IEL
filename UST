@@ -1,0 +1,138 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Apr 10 19:31:04 2018
+@author: Victor
+"""   
+import os
+import xlwt 
+import xlrd
+import sys
+from xlwt import Workbook
+from automatoSensor import *
+from criaArquivosEstadosTransicoes import*
+from diagnosis_v import *
+from datetime import datetime
+from  deslab import *
+def renameStates(Gaux,f):
+now=datetime.now()
+MAPA = open(str(now.year)+str(now.month)+str(now.day)+str(now.hour)+str(now.minute)+"MAPA.txt", "w")
+map=[]
+contAlt=1
+contE=1
+for n in Gaux.X: #renomeia estados com informacao da saida do sensor de acordo com o preenchimento da tabela
+for i in n:
+contY=0
+if i[-1]=='Y':
+contY=contY+1 
+if contY==len(n):
+#print(n)
+map=map+[(n,f+'falha_'+str(contAlt))]          
+contAlt=contAlt+1
+MAPA.write(str(n)+'->'+f+'falha_'+str(contAlt))
+MAPA.write("\n")
+else:
+map=map+[(n,'a'+str(contE))]
+MAPA.write(str(n)+'->'+'a'+str(contE))
+MAPA.write("\n")
+contE=contE+1
+MAPA.close()
+Gaux=Gaux.renamestates(map)
+return Gaux   
+syms('Vi Vc Vo Vso Vsc Vpoc Sc So Ot Ct Poc')#valvula
+syms('Ci Casp Cbsp Asp Bsp Csp Esp Cc Co Cpoc ')#Controlador
+syms('Nsc Nsb Asp Bsp 1 2 3 4 5 6  7 8')#Sensor
+syms('N Y a ') #Al
+table=[(Vi,'V_i'),(Vc,'V_c'),(Vo,'V_o'),(Vso,'V_{so}'),(Vsc,'V_{sc}'),(Vpoc,'V_{poc}'),(Sc,'S_c'),(So,'S_o'),
+(Ot,'O_t'),(Ct,'C_t'),(Poc,'P_{oc}'),(Nsb,'N_{sb}'),(Nsc,'N_{sc}'),(Asp,'A_{sp}'),(Bsp,'B_{sp}')]
+eventosObservaveis=[Ot,Ct,Poc,Asp,Bsp,Nsc,Nsb]
+#valvula
+X = [Vi,Vc,Vo,Vpoc,Vso,Vsc]
+Sigma = [So,Sc,Ot,Ct,Poc]
+X0 = [Vi]
+Xm=[]
+T =[(Vi,So,Vso),(Vi,Sc,Vsc),(Vi,Ot,Vo),(Vi,Poc,Vpoc),(Vi,Ct,Vc),  
+(Vso,Ct,Vso),(Vso,Ot,Vso),(Vso,Poc,Vso),
+(Vsc,Ct,Vsc),(Vsc,Ot,Vsc),(Vsc,Poc,Vsc),
+(Vo,Ot,Vo),(Vo,Ct,Vc),(Vo,Poc,Vpoc),(Vo,So,Vso),(Vo,Sc,Vsc),
+(Vpoc,Ot,Vo),(Vpoc,Ct,Vc),(Vpoc,Poc,Vpoc),(Vpoc,So,Vso),(Vpoc,Sc,Vsc),
+(Vc,Ot,Vo),(Vc,Ct,Vc),(Vc,Poc,Vpoc),(Vc,So,Vso),(Vc,Sc,Vsc)]
+VALVE = fsa(X,Sigma,T,X0,Xm,table,Sigobs=eventosObservaveis,name='VALVE')
+VALVE.setgraphic(direction='UD')
+#Al_So
+X = [N,Y]
+Sigma = [So]
+X0 = [N]
+Xm=[]
+T =[(N,So,Y),
+(Y,So,Y)
+AL_So = fsa(X,Sigma,T,X0,Xm,table,Sigobs=eventosObservaveis,name='AL_SO')
+AL_So.setgraphic(direction='UD')
+#Al_Sc
+X = [N,Y]
+Sigma = [Sc]
+X0 = [N]
+Xm=[]
+T =[(N,Sc,Y),
+(Y,Sc,Y)]
+AL_Sc = fsa(X,Sigma,T,X0,Xm,table,Sigobs=eventosObservaveis,name='AL_SC')
+AL_Sc.setgraphic(direction='UD')
+###controlador1
+X = [1,2,3]
+Sigma = [Sbd,Ct]
+X0 = [1]
+Xm=[]
+T =[(1,Sbd,2),
+(2,Ct,3),
+(3,Ct,3), (3,Sbd,2)]
+CONTROLADOR1 = fsa(X,Sigma,T,X0,Xm,table,Sigobs=eventosObservaveis,name='CONTROLADOR1')
+CONTROLADOR1.setgraphic(style ='diagnoser',direction='UD')
+###controlador2
+X = [1,2,3]
+Sigma = [Sar,Ot]
+X0 = [1]
+Xm=[]
+T =[(1,Sar,2),
+(2,Ot,3),
+(3,Ot,3),(3,Sar,2)]
+CONTROLADOR2 = fsa(X,Sigma,T,X0,Xm,table,Sigobs=eventosObservaveis,name='CONTROLADOR2')
+CONTROLADOR2.setgraphic(style ='diagnoser',direction='UD')
+#controlador3
+X = [1,2]
+Sigma = [Sar,Sad,Sbr,Sbd,Ot,Ct,Poc]
+X0 = [1]
+Xm=[]
+T =[(1,Sar,2),(1,Sad,2),(1,Sbr,2),(1,Sbd,2),
+(2,Ot,1),(2,Ct,1),(2,Poc,1)]   
+CONTROLADOR3 = fsa(X,Sigma,T,X0,Xm,table,Sigobs=eventosObservaveis,name='CONTROLADOR3')
+CONTROLADOR3.setgraphic(style ='diagnoser',direction='UD')
+###=========================
+CONTROLADOR=parallel(CONTROLADOR1,CONTROLADOR2,False)
+CONTROLADOR=parallel(CONTROLADOR,CONTROLADOR3,False)
+tildeG=VALVE
+##
+#criaPlanilhaDeEstados('statesMap',tildeG) # Criacao da planilha com estados#
+### 
+sensor=sensorMap('20190724-statesMap-VALVE-sensor-nivel.xls',VALVE,[Sc,So])
+####
+sensor[0].name="sensorNivel"
+sensor[1].name="sentidoErro"
+G=parallel(tildeG,sensor[0],False)
+G=parallel(G,sensor[1],False)
+G=parallel(G,CONTROLADOR,False)
+G.setgraphic(style ='diagnoser',direction='UD')
+####
+GD=diagnoser_v(G,So,ret='GD')
+GD.setgraphic(style ='diagnoser',direction='UD')
+DiagnosticabilidadeSo=is_diagnosable_v(G,So,eventosObservaveis,method='Gscc_v')
+print("Stuck Open eh diagnosticavel?",DiagnosticabilidadeSo)
+##GD_So=observer(parallel(G,AL_So,False),eventosObservaveis)
+####
+##GD_rename_So=renameStates(GD_So,So)
+###draw(GD,GD_renamed)
+##criaArquivosEstadosTransicoes(GD_renamed)
+##########################################
+GD_Sc=observer(parallel(G,AL_Sc,False),eventosObservaveis)
+##
+GD_renamed_Sc=renameStates(GD_Sc,Sc)
+#
+criaArquivosEstadosTransicoes(GD_renamed_Sc)
